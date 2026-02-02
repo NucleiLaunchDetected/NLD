@@ -150,7 +150,6 @@ def extract_knowledge_objects(
 ) -> List[VulnerabilityKnowledgeDTO]:
     """
     train.json → RawDiffDTO → LLM → VulnerabilityKnowledgeDTO 객체 리스트
-    (여기까지가 '파일로 JSON 저장 전' 단계)
     """
     raws = load_train_data(train_json_path)
     if limit:
