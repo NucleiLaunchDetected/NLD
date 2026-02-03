@@ -29,11 +29,17 @@ class LLMClient:
         return self._dummy_response(prompt)
 
     def _dummy_response(self, prompt: str) -> str:
-        """테스트용 더미 응답"""
+        """테스트용 더미 응답 (Knowledge Extraction Schema 호환)"""
         return json.dumps({
-            "summary": "This is a dummy response based on the prompt.",
-            "keywords": ["vulnerability", "patch", "security"],
-            "analysis": "Mock analysis content."
+            "purpose": "To fix a buffer overflow vulnerability.",
+            "function": "1. Data input\n2. Validation\n3. Processing",
+            "analysis": "The original code lacked bounds checking.",
+            "vulnerability_behavior": {
+                "vulnerability_cause_description": "Missing boundary check.",
+                "trigger_condition": "Input string larger than 256 bytes.",
+                "specific_code_behavior_causing_vulnerability": "strcpy used without length check."
+            },
+            "solution": "Use strncpy instead of strcpy and validate input length."
         })
 
     def _call_openai(self, prompt: str, system_prompt: str) -> str:
