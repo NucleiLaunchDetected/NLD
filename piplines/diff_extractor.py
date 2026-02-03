@@ -94,6 +94,8 @@ class DiffExtractor:
             modified_lines = self.parse_diff_for_modified_lines(patch)
             
             return {
+                "commit_hash": commit_hash,
+                "file_path": file_path,
                 "code_before_change": code_before,
                 "code_after_change": code_after,
                 "patch": patch,
