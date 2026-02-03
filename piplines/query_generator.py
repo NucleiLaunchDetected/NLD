@@ -2,7 +2,8 @@ import re
 import json
 from typing import List, Optional
 
-from dto import RawDiffDTO, StructuredQueryDTO
+from dto.rawdiffdto import RawDiffDTO
+from dto.query_dto import StructuredQueryDTO
 from piplines.llm_client import LLMClient
 
 class QueryGenerator:
