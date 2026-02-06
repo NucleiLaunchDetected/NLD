@@ -1,179 +1,162 @@
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict
 
-from dto import RawDiffDTO, VulnerabilityKnowledgeDTO, VulnerabilityBehavior
-from llm_client import LLMClient
-
-
-def load_train_data(train_json_path: str) -> List[RawDiffDTO]:
-    """train JSON 파일을 RawDiffDTO 리스트로 로드"""
-    with open(train_json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    out: List[RawDiffDTO] = []
-    for item in data:
-        try:
-            out.append(RawDiffDTO(**item))
-        except Exception as e:
-            print(f"[SKIP] RawDiffDTO parse failed: {e}")
-    return out
+from dto.rawdiffdto import RawDiffDTO
+from dto.vulnerability_knowledge_dto import VulnerabilityKnowledgeDTO, VulnerabilityBehavior
+from piplines.llm_client import LLMClient
 
 
-def build_prompt(raw: RawDiffDTO) -> str:
-    """LLM에 줄 단일 프롬프트(목표: JSON 출력)"""
-    return f"""
-This is a code snippet with a vulnerability {raw.cve_id}:
+def build_cot_prompt(raw: RawDiffDTO) -> str:
+    """
+    Chain-of-Thought(CoT) 스타일의 프롬프트를 생성
+    목적, 기능, 분석을 단계별로 추론하도록 하고, 마지막에 JSON 형태로 지식을 추출
+    """
+    
+    modified_lines_str = json.dumps(raw.function_modified_lines, indent=2, ensure_ascii=False)
+    
+    prompt = f"""
+You are a vulnerability analysis expert. Given the following code snippet and vulnerability patch information, please analyze deeply and extract structured knowledge.
+
+### Context
+CVE ID: {raw.cve_id}
+Description: {raw.cve_description}
+
+### Code (Before Change)
 '''
 {raw.code_before_change}
 '''
 
-The vulnerability is described as follows:
-{raw.cve_description}
+### Patch Information
+The correct fix involves the following line changes:
+{modified_lines_str}
 
-The correct way to fix it is by adding/deleting:
-'''
-{raw.function_modified_lines}
-'''
-
-Fixed code (after patch):
+Code after modification:
 '''
 {raw.code_after_change}
 '''
 
-Now output JSON in the following exact schema (no extra keys):
+### Instructions
+Please mimic a Chain-of-Thought (CoT) process to extract the required information step-by-step.
+
+Step 1. **Purpose Analysis**: Briefly describe the purpose of the target function in one sentence.
+Step 2. **Function Summary**: List the main functionalities of the code snippet.
+Step 3. **Vulnerability Analysis**: Explain why the modification was necessary, identifying the root cause and the fix logic.
+Step 4. **Knowledge Extraction**: Based on the analysis, generalize the vulnerability behavior and solution.
+
+### Output Format
+Finally, output the result in the following JSON format ONLY. Ensure the content is generalized (omit specific variable/resource names where appropriate).
+
 {{
+  "purpose": "Step 1 result here...",
+  "function": "Step 2 result here...",
+  "analysis": "Step 3 result here...",
   "vulnerability_behavior": {{
-    "vulnerability_cause_description": "...",
-    "trigger_condition": "...",
-    "specific_code_behavior_causing_vulnerability": "..."
+    "vulnerability_cause_description": "General description of the cause...",
+    "trigger_condition": "How an attacker triggers it...",
+    "specific_code_behavior_causing_vulnerability": "What the code does wrong..."
   }},
-  "solution": "...",
-  "purpose": "...",
-  "function": "...",
-  "analysis": "..."
+  "solution": "Generalized solution in plain text..."
 }}
 
 Rules:
-- solution is plain text (no nested dict/list).
-- Omit specific variable/resource names to keep it generalized.
-""".strip()
+- Output **valid JSON** only.
+- No markdown formatting (like ```json).
+- Ensure the 'solution' is a single string, not a nested object.
+"""
+    return prompt.strip()
 
 
 def safe_json_loads(text: str) -> Optional[dict]:
-    """LLM이 JSON 앞뒤에 잡문 붙여도 {}만 잘라 파싱 시도"""
+    """
+    LLM 응답에서 JSON 부분을 안전하게 파싱합니다.
+    """
     try:
         return json.loads(text)
     except Exception:
         pass
-
+    
+    # JSON 블록 찾기 시도
     start = text.find("{")
     end = text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        return None
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(text[start:end+1])
+        except:
+            pass
+            
+    return None
 
-    try:
-        return json.loads(text[start:end + 1])
-    except Exception:
-        return None
-
-
-def infer_metadata(raw: RawDiffDTO) -> dict:
-    """optional 메타데이터 자동 추정(없어도 됨)"""
-    desc = (raw.cve_description or "").lower()
-    before = raw.code_before_change or ""
-
-    vuln_type = "xss" if "xss" in desc else None
-
-    language = None
-    if "<?php" in before:
-        language = "php"
-    elif "{%" in before or "{{" in before:
-        language = "twig"
-
-    tags = []
-    if vuln_type:
-        tags.append(vuln_type)
-    for c in (raw.cwe or []):
-        if isinstance(c, str):
-            tags.append(c.lower())
-
-    return {"vuln_type": vuln_type, "language": language, "tags": tags or None}
-
-
-def llm_response_to_dto(raw: RawDiffDTO, llm_text: str) -> Optional[VulnerabilityKnowledgeDTO]:
-    """LLM JSON 문자열 → VulnerabilityKnowledgeDTO 객체"""
-    data = safe_json_loads(llm_text)
-    if not data:
-        print(f"[SKIP] JSON parse failed: {raw.cve_id}")
-        return None
-
-    try:
-        vb = data["vulnerability_behavior"]
-        behavior = VulnerabilityBehavior(
-            vulnerability_cause_description=vb["vulnerability_cause_description"],
-            trigger_condition=vb["trigger_condition"],
-            specific_code_behavior_causing_vulnerability=vb["specific_code_behavior_causing_vulnerability"],
-        )
-
-        meta = infer_metadata(raw)
-
-        return VulnerabilityKnowledgeDTO(
-            CVE_id=raw.cve_id,
-            vulnerability_behavior=behavior,
-            solution=data["solution"],
-            purpose=data["purpose"],
-            function=data["function"],
-            analysis=data["analysis"],
-            code_before_change=raw.code_before_change,
-            code_after_change=raw.code_after_change,
-            modified_lines=raw.function_modified_lines,
-
-            # flat copy
-            vulnerability_cause_description=behavior.vulnerability_cause_description,
-            trigger_condition=behavior.trigger_condition,
-            specific_code_behavior_causing_vulnerability=behavior.specific_code_behavior_causing_vulnerability,
-
-            # optional
-            vuln_type=meta["vuln_type"],
-            language=meta["language"],
-            tags=meta["tags"],
-        )
-    except Exception as e:
-        print(f"[SKIP] DTO mapping failed for {raw.cve_id}: {e}")
-        return None
-
-
-def extract_knowledge_objects(
-    train_json_path: str,
-    client: LLMClient,
-    limit: Optional[int] = None,
-) -> List[VulnerabilityKnowledgeDTO]:
+class KnowledgeExtractor:
     """
-    train.json → RawDiffDTO → LLM → VulnerabilityKnowledgeDTO 객체 리스트
+    Git Diff 정보(RawDiffDTO)를 입력받아 LLM을 통해 분석하고 
+    지식 데이터(VulnerabilityKnowledgeDTO)로 변환하는 클래스입니다.
     """
-    raws = load_train_data(train_json_path)
-    if limit:
-        raws = raws[:limit]
+    def __init__(self, llm_client: LLMClient):
+        self.client = llm_client
 
-    out: List[VulnerabilityKnowledgeDTO] = []
+    def process_single(self, raw: RawDiffDTO) -> Optional[VulnerabilityKnowledgeDTO]:
+        print(f"Processing {raw.cve_id}...")
 
-    for raw in raws:
-        prompt = build_prompt(raw)
+        # CoT 프롬프트 생성
+        prompt = build_cot_prompt(raw)
+        
+        # LLM 호출
+        response_text = self.client.generate(prompt)
+        
+        # 응답 파싱
+        data = safe_json_loads(response_text)
+        if not data:
+            print(f"[FAIL] JSON parse failed for {raw.cve_id}")
+            # 디버깅을 위해 응답 일부 출력
+            print(f"Raw Response: {response_text[:100]}...") 
+            return None
 
         try:
-            llm_text = client.generate(prompt)
+            # 안전하게 파싱된 데이터를 DTO로 변환
+            vb_data = data.get("vulnerability_behavior", {})
+            behavior = VulnerabilityBehavior(
+                vulnerability_cause_description=vb_data.get('vulnerability_cause_description', ''),
+                trigger_condition=vb_data.get('trigger_condition', ''),
+                specific_code_behavior_causing_vulnerability=vb_data.get('specific_code_behavior_causing_vulnerability', '')
+            )
+            
+            return VulnerabilityKnowledgeDTO(
+                CVE_id=raw.cve_id,
+                vulnerability_behavior=behavior,
+                solution=data.get("solution", ""),
+                purpose=data.get("purpose", ""),
+                function=data.get("function", ""),
+                analysis=data.get("analysis", ""),
+                code_before_change=raw.code_before_change,
+                code_after_change=raw.code_after_change,
+                modified_lines=raw.function_modified_lines,
+                
+                # Flat fields Mapping
+                vulnerability_cause_description=behavior.vulnerability_cause_description,
+                trigger_condition=behavior.trigger_condition,
+                specific_code_behavior_causing_vulnerability=behavior.specific_code_behavior_causing_vulnerability
+            )
         except Exception as e:
-            print(f"[LLM ERROR] {raw.cve_id}: {e}")
-            continue
+            print(f"[ERROR] DTO mapping failed for {raw.cve_id}: {e}")
+            return None
 
-        dto = llm_response_to_dto(raw, llm_text)
-        if dto:
-            out.append(dto)
-
-    return out
-
-
-if __name__ == "__main__":
-    client = LLMClient(model_name="dummy")
-    objs = extract_knowledge_objects("benchmark/train/train.json", client, limit=3)
-    print(f"created {len(objs)} knowledge DTO objects")
+def run_extraction(train_json_path: str, client: LLMClient):
+    """
+    파일 경로에서 학습 데이터를 로드하여 추출을 수행하는 헬퍼 함수
+    """
+    with open(train_json_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    
+    extractor = KnowledgeExtractor(client)
+    results = []
+    
+    for item in data:
+        try:
+            raw = RawDiffDTO(**item)
+            dto = extractor.process_single(raw)
+            if dto:
+                results.append(dto)
+        except Exception as e:
+            print(f"[SKIP] Item processing error: {e}")
+            
+    return results
