@@ -2,7 +2,7 @@
 # Knowledge Extraction Pipeline Runner
 
 # 사용 예제
-# ./run_extraction.sh CVE-2021-3904.json gpt-4o-mini
+# ./scripts/run_extraction.sh CVE-2021-3904.json gpt-4o-mini
 
 INPUT_FILE=${1:-"CVE-2021-3904.json"}
 MODEL_NAME=${2:-"gpt-4o-mini"}
@@ -13,10 +13,10 @@ echo "Knowledge Extraction Pipeline"
 echo "===================================="
 echo "Input:  data/train/$INPUT_FILE"
 echo "Model:  $MODEL_NAME"
-echo "Output: output/knowledge/$OUTPUT_FILE"
+echo "Output: data/knowledge/$OUTPUT_FILE"
 echo "===================================="
 
-python3 src/piplines/pipeline_extract.py \
+python src/pipelines/pipeline_extract.py \
     --input_file_name "$INPUT_FILE" \
     --output_file_name "$OUTPUT_FILE" \
     --model_name "$MODEL_NAME" \
