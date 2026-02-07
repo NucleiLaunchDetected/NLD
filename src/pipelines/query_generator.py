@@ -2,15 +2,15 @@ import re
 import json
 from typing import List, Optional
 
-from dto.rawdiffdto import RawDiffDTO
-from dto.query_dto import StructuredQueryDTO
-from piplines.llm_client import LLMClient
+from src.dto.rawdiffdto import RawDiffDTO
+from src.dto.query_dto import StructuredQueryDTO
+from src.utils.llm_client import OpenAIClient
 
 class QueryGenerator:
     """
     Diff 정보(RawDiffDTO)를 기반으로 정규화된 검색 쿼리(StructuredQueryDTO)를 생성하는 엔진.
     """
-    def __init__(self, llm_client: LLMClient):
+    def __init__(self, llm_client: OpenAIClient):
         self.llm_client = llm_client
 
     def _extract_functions_heuristic(self, code: str) -> List[str]:
@@ -85,9 +85,10 @@ Output JSON format only:
             prompt = self._generate_semantic_query_prompt(raw)
             try:
                 # LLM 호출
-                response_text = self.llm_client.generate(prompt)
-                # JSON 파싱 시도 (llm_client가 JSON 문자열을 준다고 가정하거나 파싱 로직 필요)
-                # 여기서는 간단히 json.loads 시도. 실제로는 safe parsing 필요.
+                from src.utils import llm_client as llm
+                messages = llm.generate_simple_prompt(prompt)
+                response_text = self.llm_client.generate_text(messages)
+                # JSON 파싱 시도
                 if "{" in response_text:
                     start = response_text.find("{")
                     end = response_text.rfind("}") + 1
