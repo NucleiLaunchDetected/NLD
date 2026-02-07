@@ -16,7 +16,7 @@ echo "Model:  $MODEL_NAME"
 echo "Output: data/knowledge/$OUTPUT_FILE"
 echo "===================================="
 
-python src/pipelines/pipeline_extract.py \
+python3 src/pipelines/pipeline_extract.py \
     --input_file_name "$INPUT_FILE" \
     --output_file_name "$OUTPUT_FILE" \
     --model_name "$MODEL_NAME" \
