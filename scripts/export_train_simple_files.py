@@ -123,9 +123,15 @@ def atomic_write(path: Path, obj) -> None:
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", required=True)
-    ap.add_argument("--out_dir", default="~/cve_work/export/train_simple")
+
+    # ✅ 저장 경로: data/train
+    ap.add_argument("--out_dir", default="data/train")
+
     ap.add_argument("--limit_rows", type=int, default=0)
-    ap.add_argument("--lang", type=str, default="", help="e.g., PHP, C")
+
+    # ✅ 기본은 PHP만 추출 (원하면 --lang C 이런 식으로 바꿀 수 있음)
+    ap.add_argument("--lang", type=str, default="PHP", help="Default: PHP")
+
     ap.add_argument("--min_code_lines", type=int, default=3)
     ap.add_argument("--expand_end", type=int, default=120)
     ap.add_argument("--drop_ws_only", action="store_true")
@@ -164,9 +170,12 @@ def main():
       AND mc.end_line IS NOT NULL
     """
     params: List[object] = []
+
+    # ✅ PHP 필터링 (대소문자/표기 흔들림 대응)
     if args.lang:
-        sql += " AND fc.programming_language = ?"
-        params.append(args.lang)
+        sql += " AND LOWER(fc.programming_language) LIKE ?"
+        params.append(f"%{args.lang.strip().lower()}%")
+
     if args.limit_rows and args.limit_rows > 0:
         sql += " LIMIT ?"
         params.append(args.limit_rows)
@@ -207,7 +216,6 @@ def main():
             continue
 
         cwes = cwe_map.get(cve_id, [])
-        folder = primary_cwe(cwes)
 
         obj = [{
             "cve_id": cve_id,
@@ -220,8 +228,10 @@ def main():
             "id": 1
         }]
 
-        out_path = out_dir / folder / f"{cve_id}.json"
+        # ✅ CVE별 단일 파일로 저장 (CWE 폴더 안 나눔)
+        out_path = out_dir / f"{cve_id}.json"
         atomic_write(out_path, obj)
+
         seen_cve.add(cve_id)
         written += 1
 
