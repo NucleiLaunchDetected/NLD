@@ -1,0 +1,12 @@
+{
+    "total_input_items": 170,
+    "success_count": 170,
+    "failed_count": 0,
+    "averages": {
+        "hallucination": 4.606,
+        "relevance": 4.982,
+        "helpfulness": 4.829,
+        "context_relevance": 4.976,
+        "retrieval_usefulness": 4.829
+    }
+}
