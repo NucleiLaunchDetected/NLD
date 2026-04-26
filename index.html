@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>robocat System Architecture — robocat</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; line-height: 1.65; color: #1a1a2e; background: #fff; }
+
+@media print {
+  body { font-size: 11px; }
+  .no-print { display: none !important; }
+  h2 { page-break-before: always; }
+  h2.no-break { page-break-before: avoid; }
+  .cover { page-break-after: always; min-height: auto; padding: 80px 40px; }
+  .toc  { page-break-after: always; }
+  .keep-together { page-break-inside: avoid; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+}
+
+/* ── Cover ── */
+.cover {
+  min-height: 100vh; display: flex; flex-direction: column;
+  justify-content: center; align-items: center; text-align: center;
+  background: linear-gradient(135deg, #0a0a1a 0%, #12122a 50%, #0c2340 100%);
+  color: #fff; padding: 60px 40px;
+}
+.cover .badge {
+  background: #e94560; color: #fff; font-size: 10px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; padding: 5px 16px;
+  border-radius: 20px; margin-bottom: 28px;
+}
+.cover h1 { font-size: 46px; font-weight: 900; letter-spacing: -1.5px; margin-bottom: 10px; line-height: 1.1; }
+.cover h1 span.accent { color: #e94560; }
+.cover h1 span.sub { font-size: 22px; font-weight: 400; color: #7fb3d5; display: block; margin-top: 10px; letter-spacing: 0; }
+.cover .tagline { font-size: 14px; color: #8ab4cc; max-width: 560px; margin: 20px auto 48px; }
+.cover .meta-row { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.cover .meta-item { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 14px 22px; min-width: 130px; }
+.cover .meta-item .label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #7fb3d5; margin-bottom: 5px; }
+.cover .meta-item .value { font-size: 14px; font-weight: 700; }
+.cover .key-title { margin-top: 52px; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #5a7a90; margin-bottom: 18px; }
+.cover .key-pills { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 640px; }
+.cover .pill { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 6px 16px; font-size: 12px; font-weight: 600; }
+
+/* ── Layout ── */
+.container { max-width: 920px; margin: 0 auto; padding: 52px 44px; }
+
+/* ── TOC ── */
+.toc { background: #f7fafc; border: 1px solid #dde8f0; border-radius: 12px; padding: 32px 36px; margin-bottom: 52px; }
+.toc h2 { font-size: 16px; margin-bottom: 16px; border: none; padding: 0; color: #0c2340; }
+.toc ol { padding-left: 20px; }
+.toc li { margin: 5px 0; }
+.toc a { color: #0c3060; text-decoration: none; font-weight: 500; }
+.toc a:hover { text-decoration: underline; }
+.toc .sub { list-style: none; padding-left: 18px; margin-top: 4px; }
+.toc .sub li::before { content: "–  "; color: #9ab; }
+
+/* ── Headings ── */
+h2 { font-size: 21px; font-weight: 800; color: #0c2340; border-bottom: 3px solid #e94560; padding-bottom: 8px; margin: 52px 0 20px; }
+h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin: 28px 0 10px; padding-left: 12px; border-left: 4px solid #0c3060; }
+h4 { font-size: 13px; font-weight: 700; color: #444; margin: 18px 0 7px; }
+p  { margin-bottom: 12px; color: #2d3748; }
+
+/* ── Highlight Box ── */
+.highlight-box {
+  background: linear-gradient(135deg, #0c2340 0%, #0f3460 100%);
+  color: #fff; border-radius: 14px; padding: 28px 32px; margin: 24px 0;
+}
+.highlight-box h3 { color: #7fb3d5; border-color: #e94560; font-size: 14px; padding-left: 0; border-left: none; margin-top: 0; }
+.highlight-box .points { list-style: none; padding: 0; margin-top: 14px; }
+.highlight-box .points li { padding: 8px 0 8px 28px; position: relative; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 13px; color: #c9dde8; line-height: 1.6; }
+.highlight-box .points li:last-child { border-bottom: none; }
+.highlight-box .points li::before { content: "▸"; color: #e94560; position: absolute; left: 8px; font-size: 11px; top: 10px; }
+.highlight-box .points strong { color: #fff; }
+
+/* ── Cards ── */
+.card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0; }
+.card-grid.cols3 { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width: 620px) { .card-grid { grid-template-columns: 1fr; } }
+.card { border-radius: 10px; padding: 16px 18px; border: 1px solid; }
+.card-blue   { background: #eff6ff; border-color: #bfdbfe; }
+.card-green  { background: #f0fdf4; border-color: #bbf7d0; }
+.card-yellow { background: #fefce8; border-color: #fde68a; }
+.card-purple { background: #faf5ff; border-color: #e9d5ff; }
+.card-orange { background: #fff7ed; border-color: #fed7aa; }
+.card-red    { background: #fff1f2; border-color: #fecdd3; }
+.card-dark   { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+.card-title  { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.card-tag    { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; background: rgba(0,0,0,0.08); padding: 2px 7px; border-radius: 10px; margin-left: 6px; vertical-align: middle; }
+.card ul     { padding-left: 16px; }
+.card li     { margin: 3px 0; font-size: 12px; color: #374151; }
+.card-dark li { color: #cbd5e1; }
+
+/* ── Code ── */
+code { font-family: 'Consolas','Fira Code',monospace; font-size: 11.5px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px 5px; color: #c0392b; }
+pre  { background: #0d1117; color: #c9d1d9; border-radius: 10px; padding: 20px 24px; overflow-x: auto; font-family: 'Consolas','Fira Code',monospace; font-size: 11.5px; line-height: 1.75; margin: 14px 0; }
+
+/* ── Table ── */
+table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
+th    { background: #0c2340; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
+td    { padding: 9px 14px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+tr:nth-child(even) td { background: #f7fafc; }
+
+/* ── Step List ── */
+.steps { list-style: none; padding: 0; margin: 16px 0; }
+.steps li { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 10px; padding: 12px 16px; background: #f7fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+.steps .num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: #0c3060; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.steps .body { flex: 1; font-size: 12px; color: #1a1a2e; line-height: 1.6; }
+.steps .body strong { color: #0c3060; }
+
+/* ── Callout ── */
+.callout { border-radius: 8px; padding: 14px 18px; margin: 16px 0; display: flex; gap: 12px; align-items: flex-start; font-size: 12px; }
+.callout-blue  { background: #eff6ff; border-left: 4px solid #3b82f6; }
+.callout-red   { background: #fff1f2; border-left: 4px solid #e94560; }
+.callout-green { background: #f0fdf4; border-left: 4px solid #22c55e; }
+.callout-icon  { font-size: 16px; flex-shrink: 0; }
+.callout-body  { color: #374151; }
+.callout-body strong { display: block; font-weight: 700; margin-bottom: 4px; color: #1a1a2e; }
+
+/* ── Mermaid ── */
+.mermaid-wrap { background: #f7fafc; border: 1px solid #dde8f0; border-radius: 12px; padding: 24px; margin: 20px 0; overflow-x: auto; }
+.mermaid { text-align: center; }
+
+/* ── Flow Block ── */
+.flow { background: #0d1117; color: #c9d1d9; border-radius: 10px; padding: 22px 28px; font-family: 'Consolas','Fira Code',monospace; font-size: 12px; line-height: 2; margin: 14px 0; }
+.flow .node  { color: #79c0ff; font-weight: 700; }
+.flow .file  { color: #a5d6ff; }
+.flow .arrow { color: #ff7b72; }
+.flow .note  { color: #8b949e; font-style: italic; }
+
+/* ── Footer ── */
+footer { text-align: center; padding: 36px; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; margin-top: 60px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'orthogonal' } });</script>
+</head>
+<body>
+
+<!-- ══ COVER ══ -->
+<div class="cover">
+  <div class="badge">System Architecture Document</div>
+  <h1>
+    <span class="accent">robocat</span>
+  </h1>
+  <p class="tagline">
+    RAG · CPG를 결합한 MCP 기반 LLM Agent <br>
+    오픈소스 릴리즈 diff 기반 오픈소스 취약점 탐지
+  </p>
+  <div class="meta-row">
+    <div class="meta-item"><div class="label">Team</div><div class="value">robocat</div></div>
+    <div class="meta-item"><div class="label">Target</div><div class="value">C / C++ / PHP</div></div>
+    <div class="meta-item"><div class="label">Agent</div><div class="value">Claude · Codex</div></div>
+  </div>
+  <p class="key-title">핵심 기술</p>
+  <div class="key-pills">
+    <span class="pill">Joern CPG</span>
+    <span class="pill">Hybrid RAG</span>
+    <span class="pill">MCP Server</span>
+    <span class="pill">Release Diff</span>
+    <span class="pill">Redis Cache</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══ TOC ══ -->
+<div class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#problem">1. 문제 인식 및 설계 목표</a></li>
+    <li><a href="#overview">2. 시스템 개요</a></li>
+    <li><a href="#components">3. 컴포넌트 상세</a>
+      <ul class="sub">
+        <li><a href="#comp-a">[A] Orchestration</a></li>
+        <li><a href="#comp-b">[B] Release Diff 추출</a></li>
+        <li><a href="#comp-c">[C] RAG 구성</a></li>
+        <li><a href="#comp-d">[D] Knowledge Base</a></li>
+        <li><a href="#comp-e">[E] Infrastructure</a></li>
+        <li><a href="#comp-f">[F] MCP Server</a></li>
+        <li><a href="#comp-g">[G] Agent 취약점 탐지</a></li>
+        <li><a href="#comp-h">[H] Reporting</a></li>
+      </ul>
+    </li>
+    <li><a href="#dataflow">4. End-to-End 데이터 흐름</a></li>
+    <li><a href="#diagram">5. 아키텍처 다이어그램</a></li>
+    <li><a href="#prompt">6. 프롬프트 설계 전략</a></li>
+    <li><a href="#setup">7. 실행 환경 및 설정</a></li>
+    <li><a href="#techstack">8. 기술 스택</a></li>
+  </ol>
+</div>
+
+<!-- ══ 1. 문제 인식 ══ -->
+<h2 id="problem" class="no-break">1. 문제 인식 및 설계 목표</h2>
+
+<p>"오픈소스 화이트박스 환경에서 AI가 취약점을 잘 찾으려면 어떤 조건이 필요한가? 또한 토큰을 최대한 아끼면서 취약점을 찾기 위해서 어떻게 해야 할까?" 에 대한 고민을 시작으로 프로젝트를 진행하였습니다.</p>
+
+<div class="highlight-box keep-together">
+  <h3>핵심 설계 결정: 왜 이 구조인가?</h3>
+  <ul class="points">
+    <li><strong>토큰 절감 — diff 기반, 함수 단위 분석</strong><br>
+    전체 오픈소스 프로젝트를 input으로 주기에는 토큰 부담이 너무 큼. 오픈소스 취약점이 가장 많이 나오는 시점은 릴리즈 패치 직후임 → 이전/신규 릴리즈 태그 diff에서 <em>변경된 함수</em>만 추출, 분석 scope를 최소화</li>
+    <li><strong>컨텍스트 정제 — 전체 소스 무작정 주는 것 금지</strong><br>
+    CPG(Code Property Graph) MCP 툴로 필요한 흐름만 읽도록 함, 또한 tree-sitter, rg, ctags를 통해 코드만 on-demand로 읽도록 구성 → LLM이 필요한 증거만 정확히 가져오게 제어</li>
+    <li><strong>지식 강화 — diff 기반 RAG 활용</strong><br>
+    기존 CVE 패치 함수들을 LLM으로 추상화한 지식 DB 구성, diff 함수와 코드적으로 유사한 것끼리 매핑해 취약점 유형 힌트 제공</li>
+    <li><strong>프롬프트 설계 — 분석 순서 지정, 추측 금지, 일관된 판정</strong><br>
+    AGENTS.md로 역할·탐지 scope·분석 룰·Broad→Strict 2-pass를 명시, important 항목으로 추측 금지, reject 이유 학습 누적</li>
+  </ul>
+</div>
+
+<div class="card-grid cols3">
+  <div class="card card-blue keep-together">
+    <div class="card-title">목표 1</div>
+    <ul>
+      <li>릴리즈 diff 함수 기반 취약점 탐지</li>
+      <li>토큰 최소화 + 신규 패치에서 취약점 발견</li>
+    </ul>
+  </div>
+  <div class="card card-purple keep-together">
+    <div class="card-title">목표 2</div>
+    <ul>
+      <li>MCP 기반 RAG · CPG로 에이전트 문맥 강화</li>
+      <li>LLM이 필요한 정보만 on-demand 수집</li>
+    </ul>
+  </div>
+  <div class="card card-orange keep-together">
+    <div class="card-title">목표 3</div>
+    <ul>
+      <li>현재는 C/C++ 대상 memory corruption류 취약점을 우선적으로 탐지</li>
+      <li>이후 다른 logic bug 등 취약점 탐지 기능 확장 예정</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══ 2. 시스템 개요 ══ -->
+<h2 id="overview">2. 시스템 개요</h2>
+
+<p>
+  <strong>robocat</strong>는 오픈소스 C/C++/PHP의 버전 간 diff를 분석하여
+  취약점을 자동 탐지·검증하고 CVE 보고서 초안을 생성하는 종합 정적 분석 파이프라인입니다.
+</p>
+
+<div class="callout callout-blue keep-together">
+  <span class="callout-icon">ℹ️</span>
+  <div class="callout-body">
+    <strong>프로젝트 한 줄 정의</strong>
+    RAG·CPG를 결합한 MCP 기반 LLM Agent — 오픈소스 릴리즈 diff 기반 함수 단위 취약점 탐지
+  </div>
+</div>
+
+<div class="callout callout-red keep-together">
+  <span class="callout-icon">⚡</span>
+  <div class="callout-body">
+    <strong>Dual-Pass 분석 원칙</strong>
+    모든 분석은 <em>Broad Candidate Discovery</em>(광범위 후보 수집) →
+    <em>Strict Confirmation</em>(엄격 확인) 2단계를 거침.
+    최종 보고서 <code>strict_results</code>의 <code>status=confirmed</code> 항목만 CVE 신청 대상.
+  </div>
+</div>
+
+<!-- ══ 3. 컴포넌트 ══ -->
+<h2 id="components">3. 컴포넌트 상세</h2>
+
+<h3 id="comp-a">[A] Orchestration Layer</h3>
+<div class="card card-blue keep-together">
+  <div class="card-title"><code>run_target_pipeline.sh</code><span class="card-tag">Shell</span></div>
+  <ul>
+    <li>전체 파이프라인 진입점 — 아래 B~C 단계를 순차 구동</li>
+    <li>필수: <code>--target</code> · <code>--repo</code> · <code>--old</code> · <code>--new</code></li>
+    <li>선택: <code>--language</code>(기본 c) · <code>--joern-port</code> · <code>--candidate-k</code></li>
+    <li>자동 생성: <code>configs/&lt;target&gt;.json</code>, diff 아티팩트, retriever 결과</li>
+  </ul>
+</div>
+
+<h3 id="comp-b">[B] Release Diff 추출</h3>
+
+<div class="callout callout-blue keep-together">
+  <span class="callout-icon">💡</span>
+  <div class="callout-body">
+    <strong>왜 릴리즈 diff 함수 단위인가?</strong>
+    오픈소스 취약점은 릴리즈 패치 직후에 가장 많이 발견되기 때문, 전체 소스 대신 변경된 함수를 기준으로 분석해 토큰 부담을 대폭 감소시킴.
+  </div>
+</div>
+
+<div class="card-grid keep-together">
+  <div class="card card-blue">
+    <div class="card-title"><code>c_extractor.py</code><span class="card-tag">1차</span></div>
+    <ul>
+      <li>입력: 로컬 git repo 경로, old/new 태그</li>
+      <li>git diff → 변경된 함수만 파싱·추출</li>
+      <li>출력: <code>diff_functions.json</code>, <code>diff.txt</code></li>
+    </ul>
+  </div>
+  <div class="card card-blue">
+    <div class="card-title"><code>generate_diff_retriever.py</code><span class="card-tag">2차</span></div>
+    <ul>
+      <li>입력: <code>diff_functions.json</code></li>
+      <li>purpose / function_summary / full_code 필드 구성</li>
+      <li>출력: <code>diff_retriever.json</code></li>
+    </ul>
+  </div>
+</div>
+
+<h3 id="comp-c">[C] RAG 구성</h3>
+
+<p>CVE 패치 데이터에서 추출한 취약점 지식 DB를 기반으로, diff 함수와 코드적으로 유사한 과거 취약점 유형을 LLM에 힌트로 제공합니다.</p>
+
+<div class="callout callout-blue keep-together">
+  <span class="callout-icon">📚</span>
+  <div class="callout-body">
+    <strong>RAG 지식 구축 과정</strong>
+    CVEfixes DB에서 취약점 원인이 된 함수 단위 패치 → LLM으로 자연어 추상화 (NVD · Exploit-DB · GitHub CVE 설명 참고) →
+    purpose / function_summary / vulnerability_behavior 등 구조화된 지식으로 저장
+  </div>
+</div>
+
+<h4>Stage 1 — Hybrid Retrieval (RRF Fusion)</h4>
+<table class="keep-together">
+  <tr><th>Retriever</th><th>대상 필드</th><th>방식</th><th>모델</th></tr>
+  <tr><td>Dense #1</td><td><code>purpose</code></td><td>코사인 유사도</td><td>text-embedding-3-small</td></tr>
+  <tr><td>Dense #2</td><td><code>function_summary</code></td><td>코사인 유사도</td><td>text-embedding-3-small</td></tr>
+  <tr><td>BM25</td><td><code>code_before_change</code></td><td>키워드 매칭</td><td>rank-bm25</td></tr>
+  <tr><td colspan="4" style="background:#eff6ff;text-align:center;font-weight:700;">↓ RRF (Reciprocal Rank Fusion) → Top-20 후보</td></tr>
+</table>
+
+<h4>Stage 2 — GPT Selection</h4>
+<div class="card card-purple keep-together">
+  <div class="card-title">GPT-4o-mini Selector</div>
+  <ul>
+    <li>Top-20 후보 → ChatOpenAI → <strong>취약점 유형 1개 선정</strong> (Buffer Overflow, UAF 등)</li>
+    <li>코드적으로 유사한 함수들에서 <strong>가장 많이 나온 CWE 카테고리</strong> + 대표 패턴 제공</li>
+    <li>DTO + <code>memory_corruption_patterns</code> 딕셔너리로 enrichment</li>
+    <li>출력: <code>retriever_output_top1.json</code></li>
+  </ul>
+</div>
+
+<h3 id="comp-d">[D] Knowledge Base</h3>
+<div class="card-grid cols3 keep-together">
+  <div class="card card-yellow">
+    <div class="card-title">C Knowledge</div>
+    <ul><li><code>data/knowledge/C/</code></li><li>libarchive, libtiff, libzip, libheif, lighttpd</li></ul>
+  </div>
+  <div class="card card-yellow">
+    <div class="card-title">CPP Knowledge</div>
+    <ul><li><code>data/knowledge/CPP/</code></li></ul>
+  </div>
+  <div class="card card-yellow">
+    <div class="card-title">PHP Knowledge</div>
+    <ul><li><code>data/knowledge/PHP/</code></li><li>phpmyadmin</li></ul>
+  </div>
+</div>
+<p style="margin-top:10px;">각 레코드 주요 필드: <code>CVE_id</code> · <code>CWE_id</code> · <code>purpose</code> · <code>function_summary</code> · <code>code_before_change</code> · <code>vulnerability_behavior</code> · <code>trigger_condition</code> · <code>solution_behavior</code></p>
+
+<h3 id="comp-e">[E] Infrastructure (Docker Compose)</h3>
+<div class="card-grid keep-together">
+  <div class="card card-orange">
+    <div class="card-title">Joern Container<span class="card-tag">Docker</span></div>
+    <ul>
+      <li>이미지: <code>local-joern:latest</code></li>
+      <li>포트: <code>9000</code> (REST API)</li>
+      <li>볼륨: <code>HOST_TARGETS_ROOT → /app/sources</code></li>
+      <li>CPG 생성 · taint flow · call graph · guard 분석 엔진</li>
+      <li>MCP tool 최초 호출 시 CPG 생성, 이후 on-demand 쿼리</li>
+    </ul>
+  </div>
+  <div class="card card-orange">
+    <div class="card-title">Redis Container<span class="card-tag">Docker</span></div>
+    <ul>
+      <li>이미지: <code>redis:7-alpine</code></li>
+      <li>포트: <code>6379</code></li>
+      <li>MCP 툴 결과 캐시 (재호출 시 Joern 우회)</li>
+      <li>키: <code>project + CPG revision + query params</code></li>
+      <li>AOF 영속성 활성화</li>
+    </ul>
+  </div>
+</div>
+
+<h3 id="comp-f">[F] MCP Server</h3>
+
+<p>Claude/Codex 에이전트가 취약점 분석 시 실시간 호출하는 MCP(Model Context Protocol) 서버. 에이전트가 subprocess로 띄우고 <strong>stdio</strong>로 통신합니다.</p>
+
+<div class="callout callout-red keep-together">
+  <span class="callout-icon">⚡</span>
+  <div class="callout-body">
+    <strong>왜 MCP인가?</strong>
+    LLM이 외부 도구를 자유롭게 연결·활용 가능. 소스코드 전체를 context에 넣는 대신,
+    필요한 CPG 쿼리 결과와 코드 스니펫만 on-demand로 가져와 컨텍스트를 정제함.
+  </div>
+</div>
+
+<table class="keep-together">
+  <tr><th>툴 그룹</th><th>툴 이름</th><th>역할</th></tr>
+  <tr><td><strong>config_tools</strong></td><td><code>check_cpg_status</code></td><td>Joern workspace 상태 진단 (분석 시작 전 1회)</td></tr>
+  <tr><td><strong>retriever_tools</strong></td><td><code>get_retrieved_knowledge</code></td><td>RAG 결과 — 유사 CVE/취약점 유형 힌트 반환</td></tr>
+  <tr><td rowspan="3"><strong>cpg_tools</strong></td><td><code>get_cpg_summary</code></td><td>함수 시그니처, caller/callee, callsite 파악</td></tr>
+  <tr><td><code>find_dataflow</code></td><td>source → sink 데이터 흐름 경로 추적 (핵심 근거)</td></tr>
+  <tr><td><code>find_sanitizer_or_guard</code></td><td>validation/guard 존재 및 sink 지배 여부 확인</td></tr>
+  <tr><td rowspan="4"><strong>source_tools</strong></td><td><code>read_source_context</code></td><td>특정 함수/라인 주변 소스 코드 조회</td></tr>
+  <tr><td><code>read_definition</code></td><td>심볼 정의 — ctags 기반 조회</td></tr>
+  <tr><td><code>find_references</code></td><td>심볼/패턴 사용처 — ripgrep 기반 조회</td></tr>
+  <tr><td><code>map_vuln_context</code></td><td>함수 내 취약 슬라이스(heuristic) 수집</td></tr>
+</table>
+
+<h4>CPG 쿼리 내부 흐름</h4>
+<ol class="steps keep-together">
+  <li><span class="num">1</span><span class="body">CPG revision 계산 — git HEAD hash 또는 config 파일 SHA-1</span></li>
+  <li><span class="num">2</span><span class="body"><strong>Redis 캐시 조회</strong> — 동일 쿼리 결과 존재 시 Joern 우회, 즉시 반환</span></li>
+  <li><span class="num">3</span><span class="body">캐시 미스 시: TaintQueryBuilder / CallContextQueryBuilder로 Scala 쿼리 생성 → <code>import_cpg.scala</code> 헤더 prepend</span></li>
+  <li><span class="num">4</span><span class="body">Joern REST <code>/query-sync</code>에 POST → JSON 응답 수신 (callgraph + ossdataflow 오버레이 적용)</span></li>
+  <li><span class="num">5</span><span class="body">결과 Redis에 저장 → 에이전트에 반환</span></li>
+</ol>
+
+<h3 id="comp-g">[G] Claude / Codex Agent (Analysis Layer)</h3>
+
+<p>AGENTS.md 프로토콜에 따라 동작하는 AI 에이전트. CPG 1차 분석 → 소스코드 직접 검증 2차 순으로, 불일치 시 소스코드 우선.</p>
+
+<h4>권장 MCP 툴 호출 순서 (7단계)</h4>
+<ol class="steps keep-together">
+  <li><span class="num">1</span><span class="body"><strong>check_cpg_status</strong> — Joern workspace 정상 여부 확인</span></li>
+  <li><span class="num">2</span><span class="body"><strong>get_retrieved_knowledge</strong> — RAG 예측 취약점 유형 힌트 (가설로만 사용)</span></li>
+  <li><span class="num">3</span><span class="body"><strong>get_cpg_summary</strong> — 대상 함수 시그니처, caller/callee 확정</span></li>
+  <li><span class="num">4</span><span class="body"><strong>find_dataflow</strong> — attacker-controlled source → memory sink 경로 확인</span></li>
+  <li><span class="num">5</span><span class="body"><strong>find_sanitizer_or_guard</strong> — guard/sanitizer가 sink를 지배하는지 확인</span></li>
+  <li><span class="num">6</span><span class="body"><strong>map_vuln_context</strong> — 로컬 위험 연산(크기/인덱스/alloc-free-use) 수집</span></li>
+  <li><span class="num">7</span><span class="body"><strong>read_source_context / read_definition / find_references</strong> — 최종 코드 사실 검증용, 필요한 문맥만 슬라이스해서 확인</span></li>
+</ol>
+
+<h4>증거 신뢰도 기준</h4>
+<table class="keep-together">
+  <tr><th>신뢰도</th><th>조건</th></tr>
+  <tr><td><strong style="color:#16a34a">High</strong></td><td>attacker-controlled source → memory sink 경로 확인 + guard 부재/불충분</td></tr>
+  <tr><td><strong style="color:#ca8a04">Medium</strong></td><td>경로 일부만 확인되었으나 코드상 위험 연산이 명확</td></tr>
+  <tr><td><strong style="color:#dc2626">Low / Reject</strong></td><td>source 불명확, 경로 불명확, 방어코드가 지배함 / examples·tests 경로만 존재</td></tr>
+</table>
+
+<h3 id="comp-h">[H] Reporting Layer</h3>
+<div class="card-grid cols3 keep-together">
+  <div class="card card-red">
+    <div class="card-title"><code>results/&lt;target&gt;.md</code></div>
+    <ul><li>전체 분석 보고서</li><li><code>broad_results</code> + <code>strict_results</code></li><li>XML 구조화 출력</li></ul>
+  </div>
+  <div class="card card-red">
+    <div class="card-title"><code>&lt;target&gt;_report.md</code></div>
+    <ul><li>CVE form 입력용 raw text</li><li>Section A: cveform.mitre.org</li><li>Section B: PoC 재현 절차</li></ul>
+  </div>
+  <div class="card card-red">
+    <div class="card-title">PoC Artifacts</div>
+    <ul><li>PoC 스크립트, payload</li><li>crash 로그, sanitizer 출력</li></ul>
+  </div>
+</div>
+
+<!-- ══ 4. 데이터 흐름 ══ -->
+<h2 id="dataflow">4. End-to-End 데이터 흐름</h2>
+
+<div class="flow keep-together">
+<span class="node">[ git repo ]</span>  <span class="note">(old tag, new tag)</span>
+   <span class="arrow">↓</span>  git diff → 함수 단위 파싱
+<span class="node">[ c_extractor.py ]</span>  →  <span class="file">diff_functions.json</span>
+   <span class="arrow">↓</span>
+<span class="node">[ generate_diff_retriever.py ]</span>  →  <span class="file">diff_retriever.json</span>
+   <span class="arrow">↓</span>
+<span class="node">[ retriever.py ]</span>  <span class="note">← Knowledge Base (CVE JSON) + Embedding Cache (SQLite)</span>
+   <span class="note">   Dense(purpose) + Dense(function) + BM25(code) → RRF → Top-20 → GPT-4o-mini</span>
+   <span class="arrow">↓</span>  <span class="file">retriever_output_top1.json</span>
+<span class="node">[ Claude / Codex Agent ]</span>
+   <span class="arrow">↕</span>  stdio (MCP Protocol)
+<span class="node">[ MCP Server (FastMCP) ]</span>
+   <span class="arrow">↕</span>  Redis Cache  <span class="note">(캐시 히트 시 Joern 우회)</span>
+   <span class="arrow">↓</span>  cache miss → Scala query
+<span class="node">[ Joern REST API :9000 ]</span>
+   <span class="arrow">↓</span>  HTTP /query-sync  ←  <span class="note">Source Code (Docker volume mount)</span>
+<span class="node">[ Joern Docker CPG Engine ]</span>
+   <span class="note">   taint flow · call graph · guard dominance 분석</span>
+   <span class="arrow">↑</span>  JSON 응답 반환
+<span class="node">[ Agent Analysis ]</span>  <span class="note">1차 CPG+RAG → 2차 source 직접 검증 → 불일치 시 source 우선</span>
+   <span class="arrow">↓</span>  Dual-Pass (Broad → Strict)
+<span class="node">[ results/&lt;target&gt;.md ]</span>  →  <span class="node">[ &lt;target&gt;_report.md ]</span>  →  <span class="note">cveform.mitre.org</span>
+<span class="node">[ PoC Artifacts ]</span>  <span class="note">(scripts, payloads, crash logs)</span>
+</div>
+
+<!-- ══ 5. 다이어그램 ══ -->
+<h2 id="diagram">5. 아키텍처 다이어그램</h2>
+
+<div class="mermaid-wrap">
+<div class="mermaid">
+flowchart TD
+    subgraph ORC["[A] Orchestration"]
+        A1["run_target_pipeline.sh"]
+    end
+    subgraph DIFF["[B] Release Diff 추출"]
+        B1(["git repo\nold tag → new tag"])
+        B2["c_extractor.py"]
+        B3[/"diff_functions.json"/]
+        B4["generate_diff_retriever.py"]
+        B5[/"diff_retriever.json"/]
+    end
+    subgraph RAG["[C] RAG Retrieval"]
+        C1["Dense #1\npurpose"]
+        C2["Dense #2\nfunction_summary"]
+        C3["BM25\ncode_before_change"]
+        C4{"RRF Fusion\nTop-20"}
+        C5["GPT-4o-mini\nSelector"]
+        C6[/"retriever_output_top1.json"/]
+    end
+    subgraph KB["[D] Knowledge Base"]
+        D1[("CVEfixes 기반\n추상화 지식 DB\nC / CPP / PHP")]
+    end
+    subgraph CACHE_EMB["Embedding Cache"]
+        EC[("embeddings.db\nSQLite")]
+    end
+    subgraph INFRA["[E] Infrastructure — Docker Compose"]
+        E1["Joern REST API\n:9000"]
+        E2[("Redis Cache\n:6379")]
+        E3["Joern Docker\nCPG Engine"]
+        E4[("Source Code\nVolume Mount")]
+    end
+    subgraph MCP["[F] MCP Server — FastMCP / stdio"]
+        F1["get_retrieved_knowledge\ncheck_cpg_status"]
+        F2["get_cpg_summary\nfind_dataflow\nfind_sanitizer_or_guard"]
+        F3["read_source_context\nread_definition\nfind_references\nmap_vuln_context"]
+    end
+    subgraph AGENT["[G] Claude / Codex Agent"]
+        G1["AGENTS.md\nDual-Pass\nBroad → Strict\n1차 CPG+RAG\n2차 source 검증"]
+    end
+    subgraph OUT["[H] Reporting"]
+        H1[/"results/target.md\nbroad + strict"/]
+        H2[/"CVE report.md\nSection A+B"/]
+        H3[/"PoC Artifacts"/]
+    end
+
+    A1 -->|orchestrates| B2
+    B1 -->|repo + tags| B2
+    B2 --> B3 --> B4 --> B5
+    B5 --> C1 & C2 & C3
+    D1 -->|CVE 지식| C1 & C2 & C3
+    EC -.->|cache hit| C1 & C2
+    C1 & C2 & C3 --> C4 --> C5 --> C6
+    C6 -->|get_retrieved_knowledge| F1
+
+    G1 <-->|"stdio\nMCP tools"| F1
+    G1 <-->|"stdio\nMCP tools"| F2
+    G1 <-->|"stdio\nMCP tools"| F3
+
+    F2 <-.->|"cache hit\n(Joern 우회)"| E2
+    F2 -->|"Scala query\n(cache miss)"| E1
+    E1 -->|HTTP /query-sync| E3
+    E4 -.->|volume mount| E3
+
+    G1 -->|findings| H1
+    H1 --> H2
+    G1 --> H3
+
+    style ORC   fill:#dbeafe,stroke:#3b82f6
+    style DIFF  fill:#dcfce7,stroke:#22c55e
+    style RAG   fill:#ede9fe,stroke:#8b5cf6
+    style KB    fill:#fef9c3,stroke:#eab308
+    style CACHE_EMB fill:#fef9c3,stroke:#eab308
+    style INFRA fill:#ffedd5,stroke:#f97316
+    style MCP   fill:#faf5ff,stroke:#a855f7
+    style AGENT fill:#fdf2f8,stroke:#db2777
+    style OUT   fill:#ffe4e6,stroke:#f43f5e
+</div>
+</div>
+
+<!-- ══ 6. 프롬프트 설계 ══ -->
+<h2 id="prompt">6. 프롬프트 설계 전략</h2>
+
+<div class="highlight-box keep-together">
+  <h3>AGENTS.md 핵심 설계 원칙</h3>
+  <ul class="points">
+    <li><strong>역할 지정</strong> — 메모리 커럽션 전문 취약점 분석가 (이후에는 다른 취약점 유형마다 역할을 다르게 지정할 예정)</li>
+    <li><strong>탐지 Scope 제한</strong> — diff 변경 함수 위주 분석, 불필요한 코드 탐색 금지</li>
+    <li><strong>분석 순서 강제</strong> — 7단계 MCP 툴 호출 순서로 일관된 답변 보장</li>
+    <li><strong>Broad → Strict 2-pass</strong> — 광범위 후보 수집 후 엄격 확인, Pass 2에서 신규 추가 금지</li>
+    <li><strong>추측 금지 (IMPORTANT)</strong> — 불확실하면 Strict에서 보고 금지, 코드 사실만 기반</li>
+    <li><strong>Reject 이유 학습 누적</strong> — library-only trigger path 등 패턴 축적</li>
+    <li><strong>CPG vs source 불일치 처리</strong> — CPG 결과와 소스 다르면 소스 우선</li>
+  </ul>
+</div>
+
+<h4>실제 Codex 실행 User 프롬프트</h4>
+<pre>A 타겟에 대해 diff_functions.json의 code_after_change 기준으로
+메모리 손상 취약점 후보를 전부 찾아줘
+
+이때, 신규성 필터(새로 도입된 취약점만) 적용하지 말고,
+기존부터 존재했을 가능성이 있어도 후보로 포함해줘.
+또한, mcp tool 사용 시 1차 CPG+retriever, 2차 source 직접검증,
+불일치 시 source 우선으로 판단해</pre>
+
+<h4>Codex MCP 설정 (<code>~/.codex/config.toml</code>)</h4>
+<pre>[mcp_servers.nld]
+command = "/home/nagoX/.venvs/nld/bin/python"
+args    = ["-m", "src.mcp.server"]
+cwd     = "/mnt/d/Projects/nuclei/NLD"
+
+[mcp_servers.nld.env]
+JOERN_HOST = "localhost"
+JOERN_PORT = "9000"</pre>
+
+<!-- ══ 7. 실행 환경 ══ -->
+<h2 id="setup">7. 실행 환경 및 설정</h2>
+
+<h3>환경 변수 (<code>.env</code>)</h3>
+<pre># openai
+API_KEY = "..."
+
+# joern
+JOERN_CONTAINER_NAME=joern
+JOERN_PORT=9000
+JOERN_HOST=localhost
+
+# Docker 볼륨 마운트
+HOST_TARGETS_ROOT=/mnt/d/Projects/nuclei/targets
+HOST_WORKSPACE_ROOT=/mnt/d/Projects/nuclei/joern
+
+# ── 타겟 전환 시 아래 3개만 수정 ──
+JOERN_CONFIG=libheif
+HOST_SOURCE_ROOT=/mnt/d/Projects/nuclei/targets/libheif/source
+CONTAINER_SOURCE_ROOT=/app/sources/libheif/source
+
+# redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_ENABLED=true</pre>
+
+<h3>파이프라인 실행 순서</h3>
+<ol class="steps keep-together">
+  <li><span class="num">1</span><span class="body">타겟 선정 및 태그 확인 — 변경이 충분한 버전 선택 (함수 10개 이하면 scope 너무 작음)</span></li>
+  <li><span class="num">2</span><span class="body">소스 다운로드 — <code>폴더/target명/source</code> 아래 위치 권장</span></li>
+  <li><span class="num">3</span><span class="body"><code>docker compose up -d</code> — Joern + Redis 컨테이너 시작</span></li>
+  <li><span class="num">4</span><span class="body"><code>./run_target_pipeline.sh --target libheif --repo /path --old v1.21.0 --new v1.21.2</code></span></li>
+  <li><span class="num">5</span><span class="body">Codex/Claude에서 MCP 연결 후 User 프롬프트로 분석 시작</span></li>
+  <li><span class="num">6</span><span class="body">결과 <code>results/&lt;target&gt;.md</code> 확인 → strict confirmed 항목만 수동 검증 → CVE 보고서 작성</span></li>
+</ol>
+
+<h3>트러블슈팅</h3>
+<table class="keep-together">
+  <tr><th>증상</th><th>해결</th></tr>
+  <tr><td>MCP tool 응답 없음</td><td>Codex 재실행 (MCP 서버 재시작)</td></tr>
+  <tr><td>CPG 결과 이상</td><td><code>docker exec -it nld-redis redis-cli FLUSHDB</code> 후 재시도</td></tr>
+  <tr><td>Joern 오류</td><td>Docker 재실행: <code>docker compose down && docker compose up -d</code></td></tr>
+  <tr><td>원인 불명</td><td>Codex에게 원인 직접 질의</td></tr>
+</table>
+
+<!-- ══ 8. 기술 스택 ══ -->
+<h2 id="techstack">8. 기술 스택</h2>
+
+<table class="keep-together">
+  <tr><th>카테고리</th><th>기술</th><th>용도</th></tr>
+  <tr><td><strong>언어</strong></td><td>Python 3.x, Scala (Joern DSL), Bash</td><td>파이프라인, CPG 쿼리, 오케스트레이션</td></tr>
+  <tr><td><strong>AI Agent</strong></td><td>Claude (Anthropic) / Codex (OpenAI)</td><td>취약점 분석 에이전트</td></tr>
+  <tr><td><strong>LLM API</strong></td><td>OpenAI GPT-4o-mini</td><td>RAG Stage 2 취약점 유형 선정</td></tr>
+  <tr><td><strong>임베딩</strong></td><td>text-embedding-3-small</td><td>Dense Retriever 벡터화</td></tr>
+  <tr><td><strong>MCP Framework</strong></td><td>FastMCP (Python)</td><td>MCP 서버 구현 (stdio transport)</td></tr>
+  <tr><td><strong>정적 분석</strong></td><td>Joern (CPG)</td><td>taint flow, call graph, guard 분석</td></tr>
+  <tr><td><strong>키워드 검색</strong></td><td>rank-bm25</td><td>BM25 Retriever</td></tr>
+  <tr><td><strong>소스 검색</strong></td><td>tree-sitter, ctags, ripgrep</td><td>source_tools — 정의·참조 탐색</td></tr>
+  <tr><td><strong>캐시</strong></td><td>Redis 7 (Docker), SQLite</td><td>MCP 결과 캐시 / 임베딩 캐시</td></tr>
+  <tr><td><strong>인프라</strong></td><td>Docker Compose</td><td>Joern + Redis 컨테이너</td></tr>
+  <tr><td><strong>LangChain</strong></td><td>langchain-openai</td><td>ChatOpenAI, OpenAIEmbeddings 래퍼</td></tr>
+  <tr><td><strong>지식 DB 소스</strong></td><td>CVEfixes, NVD, Exploit-DB, GitHub CVE</td><td>Knowledge Base 구축 원본</td></tr>
+</table>
+
+</div>
+<footer>
+  robocat System Architecture Document &mdash; Team robocat &mdash; 2026-04-25<br>
+  <strong>PDF 변환:</strong> 브라우저에서 열고 Ctrl+P → PDF 저장 (배경 그래픽 포함 옵션 체크 권장)
+</footer>
+</body>
+</html>
